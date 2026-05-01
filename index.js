@@ -1,8 +1,90 @@
 const express = require('express');
+const User = require('./models/User');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
+
+require('dotenv').config();
+
+
+mongoose.connect('mongodb://localhost:27017/altrodevdata')
+
+
+
+
 const app = express();
+
+
+//This is the global middleware below to parse the JSON bodies ->
+app.use(express.json())
+
+
+
+
+app.get('/health',(req,res)=>{
+    res.status(200).json({status : "Platform is superactive"})
+})
+
+
+
+
+app.post('/signup', async(req, res)=>{
+try{
+
+const {email, password} = req.body;
+
+const salt = await bcrypt.genSalt(10);
+const hashedPassword = await bcrypt.hash(password,salt);
+
+
+const user = new User({
+    email : email,
+    passwordHash : await bcrypt.hash(password,salt)
+})
+
+await user.save();
+res.status(201).json({message : "User created successfully"});
+
+}catch(err){
+    res.status(500).json({ error: err.message });
+
+}
+
+
+})
+
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    return res.status(400).json({ message: 'User not found' });
+  }
+
+  const isMatch = await bcrypt.compare(password, user.passwordHash);
+
+  if (!isMatch) {
+    return res.status(400).json({ message: 'Invalid credentials' });
+  }
+
+  const token = jwt.sign(
+    { id: user._id },
+    process.env.JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+
+  res.json({ token });
+});
+
+
+
+
 app.get('/', (req, res) => {
 res.send('Server Running');
 });
+
+
 
 
 const users = [
